@@ -102,10 +102,12 @@ class MM_base(object):
     #*********************************************
     # set output frequency for coordinate dcd file
     #*********************************************
-    def set_trajectory_output( self, filename , write_frequency ):
+    def set_trajectory_output( self, filename , write_frequency , append_trajectory=False, checkpointfile = None , write_checkpoint_frequency = 10000 ):
         self.simmd.reporters = []
-        self.simmd.reporters.append(DCDReporter(filename, write_frequency))
-
+        self.simmd.reporters.append(DCDReporter(filename, write_frequency, append=append_trajectory))
+        # add checkpointing reporter if input
+        if checkpointfile :
+            self.simmd.reporters.append(CheckpointReporter(checkpointfile, write_checkpoint_frequency))
 
 
     #*********************************************
