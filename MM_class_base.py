@@ -3,7 +3,7 @@ from simtk.openmm import *
 from simtk.unit import *
 from sys import stdout
 #******** exclusions for force field 
-from shared.MM_exclusions_base import *
+from .MM_exclusions_base import *
 
 
 #*************************************************
