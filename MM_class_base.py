@@ -47,6 +47,10 @@ class MM_base(object):
             self.small_threshold = float(kwargs['small_threshold'])
         if 'cutoff' in kwargs :
             self.cutoff = float(kwargs['cutoff'])*nanometer
+        if 'nbondedForceMethod' in kwargs:
+            self.nbondedForceMethod = str(kwargs['nbondedForceMethod'])
+        else:
+            self.nbondedForceMethod = 'PME'
 
 
         # load bond definitions before creating pdb object (which calls createStandardBonds() internally upon __init__).  Note that loadBondDefinitions is a static method
@@ -94,7 +98,13 @@ class MM_base(object):
             self.custombond = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomBondForce][0]
 
         # set long-range interaction method
-        self.nbondedForce.setNonbondedMethod(NonbondedForce.PME)
+        if self.nbondedForceMethod == 'NoCutoff':
+            self.nbondedForce.setNonbondedMethod(NonbondedForce.NoCutoff)
+        elif self.nbondedForceMethod == 'PME':
+            self.nbondedForce.setNonbondedMethod(NonbondedForce.PME)
+        else:
+            print ('No such method for nbondedForce (long range interaction method not set correctly in MM_base)')
+            sys.exit()
         self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
 
 
