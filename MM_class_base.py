@@ -31,6 +31,8 @@ class MM_base(object):
         self.timestep = 0.001*picoseconds
         self.small_threshold = 1e-6  # threshold for charge magnitude
         self.cutoff = 1.4*nanometer
+        self.nbondedForceMethod = 'PME'
+        self.NPT_barostat = False
 
         # reading inputs from **kwargs
         if 'temperature' in kwargs :
@@ -49,9 +51,8 @@ class MM_base(object):
             self.cutoff = float(kwargs['cutoff'])*nanometer
         if 'nbondedForceMethod' in kwargs:
             self.nbondedForceMethod = str(kwargs['nbondedForceMethod'])
-        else:
-            self.nbondedForceMethod = 'PME'
-
+        if 'NPT_barostat' in kwargs:
+            self.NPT_barostat = str(kwargs['NPT_barostat'])
 
         # load bond definitions before creating pdb object (which calls createStandardBonds() internally upon __init__).  Note that loadBondDefinitions is a static method
         # of Topology, so even though PDBFile creates its own topology object, these bond definitions will be applied...
@@ -106,6 +107,13 @@ class MM_base(object):
             print ('No such method for nbondedForce (long range interaction method not set correctly in MM_base)')
             sys.exit()
         self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
+
+        if self.NPT_barostat:
+            barofreq = 100
+            pressure = 1.0*atmosphere
+            barostat = MonteCarloBarostat(pressure,self.temperature,barofreq)
+            self.system.addForce(barostat)
+            barofreq = barostat.getFrequency()
 
 
 
