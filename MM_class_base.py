@@ -93,7 +93,13 @@ class MM_base(object):
         self.system = self.forcefield.createSystem(self.modeller.topology, nonbondedCutoff=self.cutoff, constraints=HBonds, rigidWater=True)
         # get force types and set method
         self.nbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == NonbondedForce][0]
-        self.customNonbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomNonbondedForce][0]
+        # check if we have a CustomNonbondedForce ...
+        customNonBondedF = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomNonbondedForce]
+        if customNonBondedF:
+            self.customNonbondedForce = customNonBondedF[0]
+        else:
+            self.customNonbondedForce = False
+
         if self.polarization :
             self.drudeForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == DrudeForce][0]
             # will only have this for certain molecules
@@ -101,14 +107,18 @@ class MM_base(object):
 
         # set long-range interaction method
         if self.nbondedForceMethod == 'NoCutoff':
+            print( "setting NonbondedForce method to NoCutoff" )
             self.nbondedForce.setNonbondedMethod(NonbondedForce.NoCutoff)
         elif self.nbondedForceMethod == 'PME':
+            print( "setting NonbondedForce method to PME" )
             self.nbondedForce.setNonbondedMethod(NonbondedForce.PME)
         else:
             print ('No such method for nbondedForce (long range interaction method not set correctly in MM_base)')
             sys.exit()
 
-        self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
+        if self.customNonbondedForce :
+            print( "setting CustomNonbondedForce method to CutoffPeriodic" )
+            self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
 
         if self.NPT_barostat:
             barofreq = 100
