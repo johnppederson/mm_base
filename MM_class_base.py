@@ -74,20 +74,6 @@ class MM_base(object):
         #if self.QMMM :
         #    self.modeller.topology.addQMatoms( self.QMregion_list )
 
-        # polarizable simulation?  Figure this out by seeing if we've added any Drude particles ...
-        self.polarization = True
-        if self.pdb.topology.getNumAtoms() == self.modeller.topology.getNumAtoms():
-            self.polarization = False
-
-        if self.polarization :
-            #************** Polarizable simulation, use Drude integrator with standard settings
-            self.integrator = DrudeLangevinIntegrator(self.temperature, self.friction, self.temperature_drude, self.friction_drude, self.timestep)
-            # this should prevent polarization catastrophe during equilibration, but shouldn't affect results afterwards ( 0.2 Angstrom displacement is very large for equil. Drudes)
-            self.integrator.setMaxDrudeDistance(0.02)
-        else :
-            #************** Non-polarizable simulation
-            self.integrator = LangevinIntegrator(self.temperature, self.friction, self.timestep)
-
 
         # create openMM system object
         self.system = self.forcefield.createSystem(self.modeller.topology, nonbondedCutoff=self.cutoff, constraints=HBonds, rigidWater=True)
@@ -100,10 +86,16 @@ class MM_base(object):
         else:
             self.customNonbondedForce = False
 
-        if self.polarization :
-            self.drudeForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == DrudeForce][0]
-            # will only have this for certain molecules
+        # check if we have a DrudeForce for polarizable simulation
+        drudeF = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == DrudeForce]
+        if drudeF:
+            self.polarization = True
+            self.drudeForce = drudeF[0]
+            # will only have this for certain polarizable molecules
             self.custombond = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomBondForce][0]
+        else:
+            self.polarization = False
+
 
         # set long-range interaction method
         if self.nbondedForceMethod == 'NoCutoff':
@@ -126,6 +118,17 @@ class MM_base(object):
             barostat = MonteCarloBarostat(pressure,self.temperature,barofreq)
             self.system.addForce(barostat)
             print ('Simulation set to run using NPT ensemble with external pressure of %s atm.' % self.NPT_barostat_pressure)
+
+
+        # set integrator
+        if self.polarization :
+            #************** Polarizable simulation, use Drude integrator with standard settings
+            self.integrator = DrudeLangevinIntegrator(self.temperature, self.friction, self.temperature_drude, self.friction_drude, self.timestep)
+            # this should prevent polarization catastrophe during equilibration, but shouldn't affect results afterwards ( 0.2 Angstrom displacement is very large for equil. Drudes)
+            self.integrator.setMaxDrudeDistance(0.02)
+        else :
+            #************** Non-polarizable simulation
+            self.integrator = LangevinIntegrator(self.temperature, self.friction, self.timestep)
 
 
     #*********************************************
