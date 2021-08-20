@@ -4,6 +4,8 @@ from simtk.unit import *
 from sys import stdout
 #******** exclusions for force field 
 from .MM_exclusions_base import *
+#******** rigid body code
+from rigid import *
 
 
 #*************************************************
@@ -33,6 +35,7 @@ class MM_base(object):
         self.cutoff = 1.4*nanometer
         self.nbondedForceMethod = 'PME'
         self.NPT_barostat = False
+        self.rigid_body = None
 
         # reading inputs from **kwargs
         if 'temperature' in kwargs :
@@ -54,6 +57,8 @@ class MM_base(object):
         if 'NPT_barostat_pressure' in kwargs:
             self.NPT_barostat = True
             self.NPT_barostat_pressure = float(kwargs['NPT_barostat_pressure'])
+        if 'rigid_body' in kwargs:
+            self.rigid_body = kwargs['rigid_body']
 
         # load bond definitions before creating pdb object (which calls createStandardBonds() internally upon __init__).  Note that loadBondDefinitions is a static method
         # of Topology, so even though PDBFile creates its own topology object, these bond definitions will be applied...
@@ -129,6 +134,27 @@ class MM_base(object):
         else :
             #************** Non-polarizable simulation
             self.integrator = LangevinIntegrator(self.temperature, self.friction, self.timestep)
+
+        # Create rigid bodies (self.rigid_body should be a list of atom types/classes)
+        if self.rigid_body is not None:
+            # In order to make rigid body selection by atom type, need to find mapping from atom_type -> atom_name -> atom_index
+            # Atom_type -> atom_name mapping is found in the in internal forcefield templates
+            rigid_body_atom_names = []
+            for template in self.forcefield._templates:
+                for atom in self.forcefield._templates[template].atoms:
+                    if atom.type in self.rigid_body:
+                        rigid_body_atom_names.append(atom.name)
+
+            # Atom_name -> atom_index mapping is found in the modeller topology
+            bodies = []
+            for res in self.modeller.topology.residues():
+                body = []
+                for atom in res._atoms:
+                    if atom.name in rigid_body_atom_names:
+                        body.append(atom.index)
+                if body != []:
+                    bodies.append(body)
+            createRigidBodies(self.system, self.modeller.positions, bodies)
 
 
     #*********************************************
