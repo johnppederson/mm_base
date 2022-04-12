@@ -4,8 +4,6 @@ from simtk.unit import *
 from sys import stdout
 #******** exclusions for force field 
 from .MM_exclusions_base import *
-#******** rigid body code
-from rigid import *
 
 
 #*************************************************
@@ -33,9 +31,6 @@ class MM_base(object):
         self.timestep = 0.001*picoseconds
         self.small_threshold = 1e-6  # threshold for charge magnitude
         self.cutoff = 1.4*nanometer
-        self.nbondedForceMethod = 'PME'
-        self.NPT_barostat = False
-        self.rigid_body = None
 
         # reading inputs from **kwargs
         if 'temperature' in kwargs :
@@ -52,13 +47,7 @@ class MM_base(object):
             self.small_threshold = float(kwargs['small_threshold'])
         if 'cutoff' in kwargs :
             self.cutoff = float(kwargs['cutoff'])*nanometer
-        if 'nbondedForceMethod' in kwargs:
-            self.nbondedForceMethod = str(kwargs['nbondedForceMethod'])
-        if 'NPT_barostat_pressure' in kwargs:
-            self.NPT_barostat = True
-            self.NPT_barostat_pressure = float(kwargs['NPT_barostat_pressure'])
-        if 'rigid_body' in kwargs:
-            self.rigid_body = kwargs['rigid_body']
+
 
         # load bond definitions before creating pdb object (which calls createStandardBonds() internally upon __init__).  Note that loadBondDefinitions is a static method
         # of Topology, so even though PDBFile creates its own topology object, these bond definitions will be applied...
@@ -79,53 +68,11 @@ class MM_base(object):
         #if self.QMMM :
         #    self.modeller.topology.addQMatoms( self.QMregion_list )
 
-
-        # create openMM system object
-        self.system = self.forcefield.createSystem(self.modeller.topology, nonbondedCutoff=self.cutoff, constraints=HBonds, rigidWater=True)
-        # get force types and set method
-        self.nbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == NonbondedForce][0]
-        # check if we have a CustomNonbondedForce ...
-        customNonBondedF = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomNonbondedForce]
-        if customNonBondedF:
-            self.customNonbondedForce = customNonBondedF[0]
-        else:
-            self.customNonbondedForce = False
-
-        # check if we have a DrudeForce for polarizable simulation
-        drudeF = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == DrudeForce]
-        if drudeF:
-            self.polarization = True
-            self.drudeForce = drudeF[0]
-            # will only have this for certain polarizable molecules
-            self.custombond = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomBondForce][0]
-        else:
+        # polarizable simulation?  Figure this out by seeing if we've added any Drude particles ...
+        self.polarization = True
+        if self.pdb.topology.getNumAtoms() == self.modeller.topology.getNumAtoms():
             self.polarization = False
 
-
-        # set long-range interaction method
-        if self.nbondedForceMethod == 'NoCutoff':
-            print( "setting NonbondedForce method to NoCutoff" )
-            self.nbondedForce.setNonbondedMethod(NonbondedForce.NoCutoff)
-        elif self.nbondedForceMethod == 'PME':
-            print( "setting NonbondedForce method to PME" )
-            self.nbondedForce.setNonbondedMethod(NonbondedForce.PME)
-        else:
-            print ('No such method for nbondedForce (long range interaction method not set correctly in MM_base)')
-            sys.exit()
-
-        if self.customNonbondedForce :
-            print( "setting CustomNonbondedForce method to CutoffPeriodic" )
-            self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
-
-        if self.NPT_barostat:
-            barofreq = 100
-            pressure = self.NPT_barostat_pressure*atmosphere
-            barostat = MonteCarloBarostat(pressure,self.temperature,barofreq)
-            self.system.addForce(barostat)
-            print ('Simulation set to run using NPT ensemble with external pressure of %s atm.' % self.NPT_barostat_pressure)
-
-
-        # set integrator
         if self.polarization :
             #************** Polarizable simulation, use Drude integrator with standard settings
             self.integrator = DrudeLangevinIntegrator(self.temperature, self.friction, self.temperature_drude, self.friction_drude, self.timestep)
@@ -135,26 +82,21 @@ class MM_base(object):
             #************** Non-polarizable simulation
             self.integrator = LangevinIntegrator(self.temperature, self.friction, self.timestep)
 
-        # Create rigid bodies (self.rigid_body should be a list of atom types/classes)
-        if self.rigid_body is not None:
-            # In order to make rigid body selection by atom type, need to find mapping from atom_type -> atom_name -> atom_index
-            # Atom_type -> atom_name mapping is found in the in internal forcefield templates
-            rigid_body_atom_names = []
-            for template in self.forcefield._templates:
-                for atom in self.forcefield._templates[template].atoms:
-                    if atom.type in self.rigid_body:
-                        rigid_body_atom_names.append(atom.name)
 
-            # Atom_name -> atom_index mapping is found in the modeller topology
-            bodies = []
-            for res in self.modeller.topology.residues():
-                body = []
-                for atom in res._atoms:
-                    if atom.name in rigid_body_atom_names:
-                        body.append(atom.index)
-                if body != []:
-                    bodies.append(body)
-            createRigidBodies(self.system, self.modeller.positions, bodies)
+        # create openMM system object
+        self.system = self.forcefield.createSystem(self.modeller.topology, nonbondedCutoff=self.cutoff, constraints=HBonds, rigidWater=True)
+        # get force types and set method
+        self.nbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == NonbondedForce][0]
+        self.customNonbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomNonbondedForce][0]
+        if self.polarization :
+            self.drudeForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == DrudeForce][0]
+            # will only have this for certain molecules
+            self.custombond = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomBondForce][0]
+
+        # set long-range interaction method
+        self.nbondedForce.setNonbondedMethod(NonbondedForce.PME)
+        self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
+
 
 
     #*********************************************
