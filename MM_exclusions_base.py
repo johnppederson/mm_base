@@ -37,7 +37,6 @@ def generate_exclusions_water(sim,customNonbondedForce,watername):
     customNonbondedForce.addInteractionGroup(notwater, notwater)
 
 
-
 #********************************
 # this sets exclusions for the SAPT-FF force field
 #********************************
@@ -61,7 +60,6 @@ def generate_SAPT_FF_exclusions(MMsys):
         if res.name == TFSIname:
             generate_exclusions_TFSI(MMsys.simmd, MMsys.drudeForce, MMsys.nbondedForce, MMsys.customNonbondedForce, TFSIname)
             break
-
 
 
 #*******************************
@@ -124,7 +122,3 @@ def generate_exclusions_TFSI(sim, drudeForce , nbondedForce, customNonbondedForc
                             drudei = particleMap[indi]
                             drudej = particleMap[indj]
                             drudeForce.addScreenedPair(drudei, drudej, 2.0)
-
-
-
-
