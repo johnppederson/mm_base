@@ -1,5 +1,5 @@
-from simtk.openmm.app import *
-from simtk.openmm import *
+from openmm.app import *
+from openmm import *
 from simtk.unit import *
 from sys import stdout
 #******** exclusions for force field 
@@ -75,10 +75,12 @@ class MM_base(object):
         self.modeller.addExtraParticles(self.forcefield)
         
         # create openMM system object
-        self.system = self.forcefield.createSystem(self.modeller.topology, nonbondedCutoff=self.cutoff, constraints=HBonds, rigidWater=True)
+        self.system = self.forcefield.createSystem(self.modeller.topology, nonbondedCutoff=self.cutoff, constraints=None, rigidWater=True)
         # get force types and set method
         self.nbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == NonbondedForce][0]
-        self.customNonbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomNonbondedForce][0]
+        self.customNonbondedForce = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == CustomNonbondedForce]
+        if self.customNonbondedForce:
+            self.customNonbondedForce = self.customNonbondedForce[0]
         
         # check if we have a DrudeForce for polarizable simulation
         drudeF = [f for f in [self.system.getForce(i) for i in range(self.system.getNumForces())] if type(f) == DrudeForce]
@@ -103,7 +105,7 @@ class MM_base(object):
 
         if self.customNonbondedForce :
             print( "setting CustomNonbondedForce method to CutoffPeriodic" )
-            self.customNonbondedForce.setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
+            self.customNonbondedForce[0].setNonbondedMethod(min(self.nbondedForce.getNonbondedMethod(),NonbondedForce.CutoffPeriodic))
 
         if self.npt_barostat:
             barofreq = 100
